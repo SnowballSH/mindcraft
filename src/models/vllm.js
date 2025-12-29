@@ -12,7 +12,10 @@ export class VLLM {
 
         // Currently use self-hosted SGLang API for text generation; use OpenAI text-embedding-3-small model for simple embedding.
         let vllm_config = {};
-        if (url)
+        const envUrl = process.env.VLLM_URL;
+        if (envUrl)
+            vllm_config.baseURL = envUrl;
+        else if (url)
             vllm_config.baseURL = url;
         else
             vllm_config.baseURL = 'http://0.0.0.0:8000/v1';

@@ -280,7 +280,7 @@ def launch_parallel_experiments(task_path,
     if run_in_tmux:
         servers = create_server_files("./tasks/server_data/", num_parallel, world_name=world_name)
     else:
-        servers = [(f"./tasks/server_data_{i}/", 55916 + i) for i in range(num_parallel)]
+        servers = [(f"./tasks/server_data_{i}/", 59756 + i) for i in range(num_parallel)]
     date_time = datetime.now().strftime("%m-%d_%H-%M")
     experiments_folder = f"experiments/{exp_name}_{date_time}"
     exp_name = f"{exp_name}_{date_time}"
@@ -382,10 +382,10 @@ def launch_server_experiment(task_path,
     """
     server_path, server_port = server
     edit_file(os.path.join(server_path, "server.properties"), {"server-port": server_port})
-    mindserver_port = server_port - 55916 + 8080
+    mindserver_port = server_port - 59756 + 8080
     
     # set up server and agents 
-    session_name = str(server_port - 55916)
+    session_name = str(server_port - 59756)
     if num_agents == 1: 
         agent_names = [f"Andy_{session_name}"]
         models = [model]
@@ -591,10 +591,10 @@ def create_server_files(source_path, num_copies, world_name="Forest"):
         dest_path = f"./tasks/server_data_{i}/"
         copy_server_files(source_path, dest_path)
         print(dest_path)
-        edit_file(dest_path + "server.properties", {"server-port": 55916 + i, 
+        edit_file(dest_path + "server.properties", {"server-port": 59756 + i, 
                                                     "level-name": world_name})
-        # edit_server_properties_file(dest_path, 55916 + i)
-        servers.append((dest_path, 55916 + i))
+        # edit_server_properties_file(dest_path, 59756 + i)
+        servers.append((dest_path, 59756 + i))
     return servers
 
 def edit_file(file, content_dict):
@@ -657,7 +657,7 @@ def delete_server_files(dest_path):
     #     delete_server_files(dest_path)
     
 
-def launch_world(server_path="./tasks/server_data/", agent_names=["andy", "jill"], session_name="server", port=55916):
+def launch_world(server_path="./tasks/server_data/", agent_names=["andy", "jill"], session_name="server", port=59756):
     """Launch the Minecraft world."""
     print(f"Launching Minecraft world with port {port}...")
     cmd = f"cd {server_path} && java -jar server.jar"
@@ -675,16 +675,16 @@ def launch_world(server_path="./tasks/server_data/", agent_names=["andy", "jill"
     subprocess.run(['tmux', 'kill-session', '-t', session_name], check=False)
     launch_world(server_path, agent_names, session_name, port)
 
-def test_server_running(port=55916):
+def test_server_running(port=59756):
     host = 'localhost'
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         try:
             s.connect((host, port))
-            print("Server is running on port 55916")
+            print("Server is running on port 59756")
             return True
         except ConnectionRefusedError:
-            print("Server is not running on port 55916")
+            print("Server is not running on port 59756")
             return False
 
 def kill_world(session_name="server"):

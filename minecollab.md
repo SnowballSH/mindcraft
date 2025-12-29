@@ -6,7 +6,7 @@ To run a task you will first need to follow the setup instructions on the main R
 
 1. Install Minecraft (or a bootleg version you can use at your own risk)
 2. Launch the supported Minecraft version from the main README
-3. Open the world to LAN at 55916 
+3. Open the world to LAN at 59756 
 4. To run a simple task that involves collecting 4 oak_logs run 
 `node main.js --task_path tasks/basic/single_agent.json --task_id gather_oak_logs`
 
@@ -101,7 +101,7 @@ For guaranteed safety, please [purchase the game](https://www.minecraft.net/) an
 2. Add an offline account with your username and create a [Minecraft 1.21.1 instance](https://prismlauncher.org/wiki/help-pages/vanilla-platform/).
 3. Launch the created instance.
 4. Click **Multiplayer** and then **Direct Connection**.
-5. Enter `localhost:55916` and hit **Join Server**.
+5. Enter `localhost:59756` and hit **Join Server**.
 
 Download the relevant task files and server data files, you can find the link [here](https://drive.google.com/drive/folders/1XygbitBBTsNO6q_doEiZHmdETpnyRmCS). The tasks files are for specifying the tasks to run and the server data is for allowing the models to launch the task in the correct world automatically. **Unzip the server_data.zip in the base `tasks/` folder**.
 
@@ -152,7 +152,7 @@ python tasks/evaluation_script.py --task_path {path_to_two_agent_cooking_tasks} 
 python tasks/evaluation_script.py --task_path {path_to_two_agent_construction_tasks} --model gpt-4o-mini --template_profile profiles/tasks/construction_profile.json --insecure_coding
 ```
 
-When you launch the evaluation script, you will see the minecraft server being launched. If you want to join this world, you can connect to it on the port localhost:55916 the way you would a standard Minecraft world (go to single player -> direct connection -> type in localhost:55916) It may take a few minutes for everything to be properly loaded - as first the agents need to be added to the world and given the correct permissions to use cheats and add inventory. After about 5 minutes everything should be loaded and working. If you wish to kill the experiment run `tmux kill-server`. Sometimes there will be issues copying the files, if this happens you can run the python file twice. 
+When you launch the evaluation script, you will see the minecraft server being launched. If you want to join this world, you can connect to it on the port localhost:59756 the way you would a standard Minecraft world (go to single player -> direct connection -> type in localhost:59756) It may take a few minutes for everything to be properly loaded - as first the agents need to be added to the world and given the correct permissions to use cheats and add inventory. After about 5 minutes everything should be loaded and working. If you wish to kill the experiment run `tmux kill-server`. Sometimes there will be issues copying the files, if this happens you can run the python file twice. 
 
 ## Windows Installation (without tmux)
 
