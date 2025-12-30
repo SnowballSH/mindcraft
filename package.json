@@ -39,7 +39,8 @@
     },
     "scripts": {
         "postinstall": "patch-package",
-        "start": "node main.js"
+        "start": "node main.js",
+        "telemetry": "node plugins/telemetry/server.js"
     },
     "devDependencies": {
         "@eslint/js": "^9.13.0",

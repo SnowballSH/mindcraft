@@ -38,8 +38,8 @@ def parse_args():
     parser.add_argument(
         "--mindserver-base",
         type=int,
-        default=8080,
-        help="Base port for MINDSERVER_PORT (default: 8080)."
+        default=8780,
+        help="Base port for MINDSERVER_PORT (default: 8780)."
     )
     parser.add_argument(
         "--mindserver-step",
@@ -90,7 +90,7 @@ def write_instance_profiles(instance_index, profiles, profile_dir):
     for profile_index, (source_path, profile_data) in enumerate(profiles):
         data = copy.deepcopy(profile_data)
         base_name = data.get("name") or os.path.splitext(os.path.basename(source_path))[0]
-        data["name"] = f"{base_name}-{instance_index}"
+        data["name"] = f"{base_name}_{instance_index}"
         out_path = os.path.join(profile_dir, f"profile_{instance_index}_{profile_index}.json")
         with open(out_path, "w", encoding="utf-8") as handle:
             json.dump(data, handle, indent=4)

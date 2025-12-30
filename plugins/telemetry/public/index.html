@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Mindcraft Telemetry Plugin</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 20px; background: #1a1a1a; color: #e0e0e0; }
+      .card { background: #2d2d2d; padding: 14px; border-radius: 8px; margin-bottom: 12px; }
+      .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+      button { border: none; border-radius: 6px; padding: 8px 12px; cursor: pointer; color: #fff; }
+      button.primary { background: #2196F3; }
+      button.danger { background: #f44336; }
+      input { background: #262626; border: 1px solid #555; color: #e0e0e0; border-radius: 6px; padding: 6px 8px; }
+      code { background: #262626; padding: 2px 6px; border-radius: 4px; }
+      .muted { color: #aaa; }
+      pre { background: #111; padding: 10px; border-radius: 8px; overflow: auto; }
+    </style>
+  </head>
+  <body>
+    <div style="display:flex; gap:12px; align-items:center; margin-bottom:12px;">
+      <span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#3a3a3a; color:#ddd; font-size:0.9em;">Live</span>
+      <a href="/runs.html" style="color:#90caf9;">Runs</a>
+      <div style="flex:1;"></div>
+    </div>
+    <h1 style="margin-top:0;">Telemetry Plugin</h1>
+
+    <div class="card">
+      <div class="row">
+        <div>Status: <span id="status" class="muted">disconnected</span></div>
+        <div>MindServer: <code id="ms"></code></div>
+        <div>Plugin: <code id="pl"></code></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin:0 0 10px 0;">Recording</h2>
+      <div class="row" style="margin-bottom:10px;">
+        <label>Run ID <input id="runId" placeholder="run_YYYYMMDD_HHMMSS" size="26" /></label>
+        <button class="primary" id="startBtn">Start</button>
+        <button class="danger" id="stopBtn">Stop</button>
+      </div>
+      <div class="muted" id="runInfo"></div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin:0 0 10px 0;">Debug</h2>
+      <pre id="debug">Loading…</pre>
+    </div>
+
+    <div class="card">
+      <h2 style="margin:0 0 10px 0;">Metrics (live snapshot)</h2>
+      <pre id="metrics">Loading…</pre>
+    </div>
+
+    <script>
+      const socket = io();
+      const statusEl = document.getElementById('status');
+      const msEl = document.getElementById('ms');
+      const plEl = document.getElementById('pl');
+      const debugEl = document.getElementById('debug');
+      const metricsEl = document.getElementById('metrics');
+      const runInfoEl = document.getElementById('runInfo');
+      const runIdEl = document.getElementById('runId');
+
+      function fmtNow() {
+        const d = new Date();
+        const pad = (n) => String(n).padStart(2, '0');
+        return `run_${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+      }
+      runIdEl.value = fmtNow();
+
+      function setStatus(ok) {
+        statusEl.textContent = ok ? 'connected' : 'disconnected';
+        statusEl.style.color = ok ? '#4CAF50' : '#f44336';
+      }
+
+      socket.on('connect', () => setStatus(true));
+      socket.on('disconnect', () => setStatus(false));
+
+      socket.on('telemetry:status', (s) => {
+        msEl.textContent = `${s.mindserver.host}:${s.mindserver.port}`;
+        plEl.textContent = `localhost:${s.plugin.port}`;
+        runInfoEl.textContent = s.recording
+          ? `Recording: ${s.run.runId} → ${s.run.eventsPath}`
+          : 'Not recording';
+        debugEl.textContent = JSON.stringify(s, null, 2);
+        metricsEl.textContent = JSON.stringify(s.metrics || {}, null, 2);
+      });
+
+      document.getElementById('startBtn').onclick = () => {
+        socket.emit('telemetry:start', { runId: runIdEl.value }, (resp) => {
+          if (resp?.error) alert(resp.error);
+        });
+      };
+      document.getElementById('stopBtn').onclick = () => {
+        socket.emit('telemetry:stop', {}, (resp) => {
+          if (resp?.error) alert(resp.error);
+        });
+      };
+
+      socket.emit('telemetry:getStatus');
+      setInterval(() => socket.emit('telemetry:getStatus'), 1000);
+    </script>
+  </body>
+</html>
+
+

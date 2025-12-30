@@ -182,7 +182,10 @@ export class Agent {
         this.bot.on('whisper', respondFunc);
         
         this.bot.on('chat', (username, message) => {
-            if (serverProxy.getNumOtherAgents() > 0) return;
+            const isHumanPlayer = !convoManager.isOtherAgent(username);
+            // *** We want the user to be able to communicate with agents even when there are multiple ***
+            if (serverProxy.getNumOtherAgents() > 0 && !isHumanPlayer) return;
+            // if (serverProxy.getNumOtherAgents() > 0) return;
             // only respond to open chat messages when there are no other agents
             respondFunc(username, message);
         });

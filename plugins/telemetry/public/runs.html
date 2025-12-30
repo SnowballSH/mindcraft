@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Telemetry Runs</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 20px; background: #1a1a1a; color: #e0e0e0; }
+      a { color: #90caf9; }
+      .nav { display:flex; gap:12px; margin-bottom: 12px; }
+      .card { background: #2d2d2d; padding: 14px; border-radius: 8px; margin-bottom: 12px; }
+      .row { display:flex; gap:10px; align-items:center; flex-wrap: wrap; }
+      select, input { background:#262626; border:1px solid #555; color:#e0e0e0; border-radius:6px; padding:6px 8px; }
+      button { border:none; border-radius:6px; padding:8px 12px; cursor:pointer; color:#fff; background:#505050; }
+      button:hover { background:#5a5a5a; }
+      .muted { color:#aaa; }
+      table { width:100%; border-collapse: collapse; }
+      th, td { border-bottom: 1px solid #3a3a3a; padding: 6px 8px; text-align:left; font-size: 0.9em; }
+      .pill { display:inline-block; padding:2px 8px; border-radius:999px; background:#3a3a3a; color:#ddd; font-size:0.8em; }
+      .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+      .chart { background:#111; border-radius: 8px; padding: 10px; overflow:auto; }
+      .legend { display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; }
+      .legend span { display:inline-flex; align-items:center; gap:6px; }
+      .swatch { width:10px; height:10px; border-radius:2px; display:inline-block; }
+    </style>
+  </head>
+  <body>
+    <div class="nav">
+      <a href="/index.html">Live</a>
+      <span class="pill">Runs</span>
+    </div>
+
+    <h1 style="margin:0 0 12px 0;">Runs</h1>
+
+    <div class="card">
+      <div class="row">
+        <label>Run
+          <select id="runSelect"></select>
+        </label>
+        <label>Agent
+          <select id="agentSelect"><option value="__all__">All</option></select>
+        </label>
+        <label>Max events
+          <input id="limitInput" type="number" value="20000" min="1000" max="100000" step="1000" />
+        </label>
+        <button id="refreshBtn">Load</button>
+      </div>
+      <div class="muted" id="runMeta"></div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2 style="margin:0 0 10px 0;">Summary</h2>
+        <div id="summary"></div>
+      </div>
+      <div class="card">
+        <h2 style="margin:0 0 10px 0;">Event counts</h2>
+        <div id="counts"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin:0 0 10px 0;">Progress over time (task_progress)</h2>
+      <div class="chart" id="progressChart"></div>
+      <div class="legend" id="progressLegend"></div>
+      <div class="muted">Tip: pick an agent to focus the chart. This chart uses derived `task_progress` events (not raw per-tick state).</div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin:0 0 10px 0;">Deaths timeline</h2>
+      <div class="chart" id="deathChart"></div>
+      <div class="muted">Each marker is a `death` event (health transition to 0).</div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin:0 0 10px 0;">Events table (filtered)</h2>
+      <table>
+        <thead>
+          <tr><th>t (s)</th><th>type</th><th>agent</th><th>details</th></tr>
+        </thead>
+        <tbody id="eventsTbody"></tbody>
+      </table>
+    </div>
+
+    <script>
+      const runSelect = document.getElementById('runSelect');
+      const agentSelect = document.getElementById('agentSelect');
+      const limitInput = document.getElementById('limitInput');
+      const runMetaEl = document.getElementById('runMeta');
+      const summaryEl = document.getElementById('summary');
+      const countsEl = document.getElementById('counts');
+      const progressChartEl = document.getElementById('progressChart');
+      const progressLegendEl = document.getElementById('progressLegend');
+      const deathChartEl = document.getElementById('deathChart');
+      const eventsTbody = document.getElementById('eventsTbody');
+
+      function esc(s) {
+        return String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+      }
+
+      async function fetchJson(url) {
+        const r = await fetch(url);
+        if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+        return await r.json();
+      }
+
+      function setAgents(agents) {
+        const current = agentSelect.value;
+        agentSelect.innerHTML = '<option value="__all__">All</option>' + agents.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('');
+        if ([...agentSelect.options].some(o => o.value === current)) agentSelect.value = current;
+      }
+
+      function msToSec(ms) { return (ms / 1000).toFixed(1); }
+
+      function computeRunStart(events, metaStartedAt) {
+        const ts0 = metaStartedAt || null;
+        if (ts0) return ts0;
+        const first = events.reduce((m, e) => Math.min(m, Number(e.ts||Infinity)), Infinity);
+        return Number.isFinite(first) ? first : Date.now();
+      }
+
+      function colorForAgent(agent) {
+        // deterministic hash -> hue
+        let h = 0;
+        for (let i=0; i<agent.length; i++) h = (h*31 + agent.charCodeAt(i)) >>> 0;
+        const hue = h % 360;
+        return `hsl(${hue}, 70%, 60%)`;
+      }
+
+      function renderCounts(counts) {
+        const rows = Object.entries(counts).sort((a,b) => b[1]-a[1]).map(([k,v]) => `<div><span class="pill">${esc(k)}</span> ${v}</div>`).join('');
+        countsEl.innerHTML = rows || '<span class="muted">No events</span>';
+      }
+
+      function renderSummary({ agents, firstDeathByAgent, timeToGoalByAgent }) {
+        const parts = [];
+        parts.push(`<div><span class="pill">agents</span> ${agents.length ? esc(agents.join(', ')) : '<span class="muted">none</span>'}</div>`);
+        parts.push('<div style="height:8px"></div>');
+        parts.push('<div><span class="pill">first_death_time</span></div>');
+        if (Object.keys(firstDeathByAgent).length === 0) parts.push('<div class="muted">no deaths observed</div>');
+        else parts.push(Object.entries(firstDeathByAgent).map(([a,v]) => `<div>${esc(a)}: ${v == null ? '<span class="muted">n/a</span>' : esc(msToSec(v))+'s'}</div>`).join(''));
+        parts.push('<div style="height:8px"></div>');
+        parts.push('<div><span class="pill">time_to_goal</span></div>');
+        if (Object.keys(timeToGoalByAgent).length === 0) parts.push('<div class="muted">no goals reached</div>');
+        else parts.push(Object.entries(timeToGoalByAgent).map(([a,v]) => `<div>${esc(a)}: ${v == null ? '<span class="muted">n/a</span>' : esc(msToSec(v))+'s'}</div>`).join(''));
+        summaryEl.innerHTML = parts.join('');
+      }
+
+      function svgLineChart(seriesByAgent, { width=900, height=220, padding=30, ts0 }) {
+        const agents = Object.keys(seriesByAgent);
+        const points = [];
+        for (const a of agents) {
+          for (const p of seriesByAgent[a]) points.push(p);
+        }
+        if (points.length === 0) {
+          return `<div class="muted">No data</div>`;
+        }
+        const xs = points.map(p => p.t);
+        const ys = points.map(p => p.v);
+        const minX = Math.min(...xs);
+        const maxX = Math.max(...xs);
+        const minY = Math.min(...ys);
+        const maxY = Math.max(...ys);
+        const spanX = Math.max(1, maxX - minX);
+        const spanY = Math.max(1, maxY - minY);
+        const x = (t) => padding + ((t - minX) / spanX) * (width - 2*padding);
+        const y = (v) => height - padding - ((v - minY) / spanY) * (height - 2*padding);
+
+        const axis = `
+          <line x1="${padding}" y1="${height-padding}" x2="${width-padding}" y2="${height-padding}" stroke="#444"/>
+          <line x1="${padding}" y1="${padding}" x2="${padding}" y2="${height-padding}" stroke="#444"/>
+          <text x="${padding}" y="${height-8}" fill="#aaa" font-size="12">t(s)</text>
+          <text x="8" y="${padding}" fill="#aaa" font-size="12">progress</text>
+        `;
+
+        const paths = agents.map(a => {
+          const pts = seriesByAgent[a].sort((p,q)=>p.t-q.t);
+          const d = pts.map((p,i)=> `${i===0?'M':'L'} ${x(p.t)} ${y(p.v)}`).join(' ');
+          const stroke = colorForAgent(a);
+          return `<path d="${d}" fill="none" stroke="${stroke}" stroke-width="2" />`;
+        }).join('');
+
+        return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+          ${axis}
+          ${paths}
+        </svg>`;
+      }
+
+      function svgDeathTimeline(deaths, { width=900, height=80, padding=20 }) {
+        if (deaths.length === 0) return `<div class="muted">No deaths</div>`;
+        const ts = deaths.map(d => d.t);
+        const minX = Math.min(...ts);
+        const maxX = Math.max(...ts);
+        const spanX = Math.max(1, maxX - minX);
+        const x = (t) => padding + ((t - minX) / spanX) * (width - 2*padding);
+        const baseY = height/2;
+        const axis = `<line x1="${padding}" y1="${baseY}" x2="${width-padding}" y2="${baseY}" stroke="#444"/>`;
+        const marks = deaths.map(d => {
+          const cx = x(d.t);
+          const col = colorForAgent(d.agent);
+          return `<circle cx="${cx}" cy="${baseY}" r="5" fill="${col}">
+            <title>${d.agent} @ ${d.t.toFixed(1)}s</title>
+          </circle>`;
+        }).join('');
+        return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${axis}${marks}</svg>`;
+      }
+
+      function renderEventsTable(events, ts0, agentFilter) {
+        const filtered = events
+          .filter(e => ['episode_started','episode_ended','death','inventory_delta','task_progress','error'].includes(e.type))
+          .filter(e => agentFilter === '__all__' ? true : (e.agent_name === agentFilter))
+          .slice(0, 500);
+        eventsTbody.innerHTML = filtered.map(e => {
+          const t = (Number(e.ts) - ts0) / 1000;
+          let details = '';
+          if (e.type === 'death') details = `death_index=${e.death_index ?? ''}`;
+          if (e.type === 'task_progress') details = `success=${e.success} task_id=${e.task_id ?? ''}`;
+          if (e.type === 'inventory_delta') {
+            const keys = Object.keys(e.delta || {});
+            details = keys.slice(0,6).map(k => `${k}:${e.delta[k]}`).join(', ') + (keys.length>6?'…':'');
+          }
+          if (e.type === 'error') details = e.message || '';
+          return `<tr>
+            <td>${esc(t.toFixed(1))}</td>
+            <td><span class="pill">${esc(e.type)}</span></td>
+            <td>${esc(e.agent_name || '')}</td>
+            <td>${esc(details)}</td>
+          </tr>`;
+        }).join('');
+      }
+
+      async function loadRuns() {
+        const data = await fetchJson('/api/runs');
+        runSelect.innerHTML = data.runs.map(r => `<option value="${esc(r.runId)}">${esc(r.runId)}</option>`).join('');
+      }
+
+      async function loadRun() {
+        const runId = runSelect.value;
+        const limit = Number(limitInput.value || 20000);
+        runMetaEl.textContent = 'Loading…';
+
+        const metaResp = await fetchJson(`/api/runs/${encodeURIComponent(runId)}/meta`);
+        const types = ['episode_started','episode_ended','death','inventory_delta','task_progress','error','run_started','run_ended'];
+        const eventsResp = await fetchJson(`/api/runs/${encodeURIComponent(runId)}/events?limit=${limit}&types=${encodeURIComponent(types.join(','))}`);
+        const meta = metaResp.meta;
+        const events = eventsResp.events || [];
+        const ts0 = computeRunStart(events, meta?.startedAt);
+        runMetaEl.textContent = `Started: ${meta?.startedAt ? new Date(meta.startedAt).toLocaleString() : 'unknown'} · loaded ${events.length}${eventsResp.truncated ? ' (truncated)' : ''} events`;
+
+        // agent list
+        const agents = [...new Set(events.map(e => e.agent_name).filter(Boolean))].sort();
+        setAgents(agents);
+
+        // counts
+        const counts = {};
+        for (const e of events) counts[e.type] = (counts[e.type] || 0) + 1;
+        renderCounts(counts);
+
+        // simple summary using event semantics
+        const episodeStart = {};
+        const firstDeath = {};
+        const goalTs = {};
+        for (const e of events) {
+          if (e.type === 'episode_started' && e.agent_name && episodeStart[e.agent_name] === undefined) episodeStart[e.agent_name] = e.ts;
+          if (e.type === 'death' && e.agent_name && firstDeath[e.agent_name] === undefined) firstDeath[e.agent_name] = e.ts;
+          if (e.type === 'task_progress' && e.agent_name && e.success === true && goalTs[e.agent_name] === undefined) goalTs[e.agent_name] = e.ts;
+        }
+        const firstDeathByAgent = {};
+        for (const [a, dts] of Object.entries(firstDeath)) firstDeathByAgent[a] = episodeStart[a] ? dts - episodeStart[a] : null;
+        const timeToGoalByAgent = {};
+        for (const [a, gts] of Object.entries(goalTs)) timeToGoalByAgent[a] = episodeStart[a] ? gts - episodeStart[a] : null;
+        renderSummary({ agents, firstDeathByAgent, timeToGoalByAgent });
+
+        // progress chart: plot sum(progress[item].have) / sum(required) for each agent over time
+        const agentFilter = agentSelect.value;
+        const progressSeries = {};
+        for (const a of agents) progressSeries[a] = [];
+        for (const e of events) {
+          if (e.type !== 'task_progress') continue;
+          const a = e.agent_name;
+          if (!a || !progressSeries[a]) continue;
+          const prog = e.progress || {};
+          const items = Object.values(prog);
+          let haveSum = 0;
+          let reqSum = 0;
+          for (const it of items) {
+            haveSum += Number(it.have || 0);
+            reqSum += Number(it.required || 0);
+          }
+          const ratio = reqSum > 0 ? haveSum / reqSum : 0;
+          const t = (Number(e.ts) - ts0) / 1000;
+          progressSeries[a].push({ t, v: ratio });
+        }
+        const seriesToPlot = (agentFilter === '__all__')
+          ? progressSeries
+          : ({ [agentFilter]: progressSeries[agentFilter] || [] });
+        progressChartEl.innerHTML = svgLineChart(seriesToPlot, { ts0 });
+        progressLegendEl.innerHTML = Object.keys(seriesToPlot).map(a => {
+          const c = colorForAgent(a);
+          return `<span><i class="swatch" style="background:${c}"></i>${esc(a)}</span>`;
+        }).join('') || '<span class="muted">No agents</span>';
+
+        // death timeline
+        const deaths = events
+          .filter(e => e.type === 'death')
+          .filter(e => agentFilter === '__all__' ? true : (e.agent_name === agentFilter))
+          .map(e => ({ agent: e.agent_name, t: (Number(e.ts) - ts0) / 1000 }));
+        deathChartEl.innerHTML = svgDeathTimeline(deaths, {});
+
+        renderEventsTable(events, ts0, agentFilter);
+      }
+
+      document.getElementById('refreshBtn').onclick = () => loadRun().catch(err => alert(err.message));
+      agentSelect.onchange = () => loadRun().catch(err => alert(err.message));
+
+      // init
+      loadRuns()
+        .then(() => loadRun())
+        .catch((e) => {
+          runMetaEl.textContent = 'Failed to load runs. Is the plugin server running?';
+          console.error(e);
+        });
+    </script>
+  </body>
+</html>
+
+

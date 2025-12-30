@@ -1,0 +1,8 @@
+{
+  "runId": "run_20251230_231505",
+  "startedAt": 1767107740460,
+  "mindserver": {
+    "host": "localhost",
+    "port": 8080
+  }
+}
