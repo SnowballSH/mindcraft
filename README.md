@@ -65,6 +65,7 @@ You can configure the agent's name, model, and prompts in their profile like `an
 | `xai` | `XAI_API_KEY` | [docs](https://docs.x.ai/docs) |
 | `deepseek` | `DEEPSEEK_API_KEY` | [docs](https://api-docs.deepseek.com/) |
 | `ollama` (local) | n/a | [docs](https://ollama.com/library) |
+| `lmstudio` (local) | n/a | [docs](https://lmstudio.ai/docs/api) |
 | `qwen` | `QWEN_API_KEY` | [Intl.](https://www.alibabacloud.com/help/en/model-studio/developer-reference/use-qwen-by-calling-api)/[cn](https://help.aliyun.com/zh/model-studio/getting-started/models) |
 | `mistral` | `MISTRAL_API_KEY` | [docs](https://docs.mistral.ai/getting-started/models/models_overview/) |
 | `replicate` | `REPLICATE_API_KEY` | [docs](https://replicate.com/collections/language-models) |
@@ -82,11 +83,14 @@ You can configure the agent's name, model, and prompts in their profile like `an
 
 For more comprehensive model configuration and syntax, see [Model Specifications](#model-specifications).
 
-For local models we support [ollama](https://ollama.com/) and we provide our own finetuned models for you to use. 
-To install our models, install ollama and run the following terminal command:
+For local models we support [Ollama](https://ollama.com/) and [LM Studio](https://lmstudio.ai/).
+To install our models with Ollama, install Ollama and run the following terminal command:
 ```bash
 ollama pull sweaterdog/andy-4:micro-q8_0 && ollama pull embeddinggemma
 ```
+For LM Studio, download a model in the UI and start the local server. The REST API is available at `http://127.0.0.1:1234/api/v0` by default (models, chat/completions, embeddings). You can also use OpenAI compatibility mode at `http://127.0.0.1:1234/v1`.
+Supported LM Studio REST endpoints: `GET /api/v0/models`, `GET /api/v0/models/{model}`, `POST /api/v0/chat/completions`, `POST /api/v0/completions`, `POST /api/v0/embeddings`.
+You can override local base URLs with `OLLAMA_URL` or `LMSTUDIO_URL`, or set the `url` field in your model config.
 
 ## Online Servers
 To connect to online servers your bot will need an official Microsoft/Minecraft account. You can use your own personal one, but will need another account if you want to connect too and play with it. To connect, change these lines in `settings.js`:
@@ -205,6 +209,26 @@ The `model` field can be a string or an object. A model object must specify an `
 `model` is used for chat, `code_model` is used for newAction coding, `vision_model` is used for image interpretation, `embedding` is used to embed text for example selection, and `speak_model` is used for voice synthesis. `model` will be used by default for all other models if not specified. Not all APIs support embeddings, vision, or voice synthesis.
 
 All apis have default models and urls, so those fields are optional. The `params` field is optional and can be used to specify additional parameters for the model. It accepts any key-value pairs supported by the api. Is not supported for embedding models.
+
+### Function Calling (FunctionGemma)
+
+Mindcraft can delegate command selection to a local function-calling model. When `function_model` is configured, the main chat prompt will ask the thinker to emit a line starting with `@function_gemma ...` instead of writing commands directly. The runtime will pass that intent to FunctionGemma and execute the returned `!command`.
+
+Configure it in `settings.js` (or inside a profile to override per bot):
+
+```json
+"function_model": "ollama/functiongemma:270m"
+```
+
+```json
+"function_model": {
+  "api": "lmstudio",
+  "model": "functiongemma-270m",
+  "url": "http://127.0.0.1:1234"
+}
+```
+
+After configuration, load FunctionGemma in Ollama or LM Studio and keep the local server running.
 
 ## Embedding Models
 

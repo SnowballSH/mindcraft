@@ -17,6 +17,7 @@ import settings from './settings.js';
 import { Task } from './tasks/tasks.js';
 import { speak } from './speak.js';
 import { log, validateNameFormat, handleDisconnection } from './connection_handler.js';
+import { extractFunctionGemmaRequest } from './function_gemma.js';
 
 export class Agent {
     async start(load_mem=false, init_message=null, count_id=0) {
@@ -323,6 +324,20 @@ export class Agent {
             let res = await this.prompter.promptConvo(history);
 
             console.log(`${this.name} full response to ${source}: ""${res}""`);
+
+            const functionRequest = extractFunctionGemmaRequest(res);
+            if (functionRequest) {
+                res = functionRequest.cleaned;
+                if (!containsCommand(res) && this.prompter.function_model) {
+                    const functionCall = await this.prompter.promptFunctionCall(functionRequest.intent, history);
+                    const functionCommand = typeof functionCall === 'string' ? truncCommandMessage(functionCall).trim() : '';
+                    if (functionCommand && containsCommand(functionCommand)) {
+                        res = [res, functionCommand].filter(Boolean).join(' ').trim();
+                    }
+                } else if (!this.prompter.function_model) {
+                    console.warn('FunctionGemma requested but no function_model is configured.');
+                }
+            }
 
             if (res.trim().length === 0) {
                 console.warn('no response')

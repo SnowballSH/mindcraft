@@ -1,6 +1,6 @@
 import { readFileSync, mkdirSync, writeFileSync} from 'fs';
 import { Examples } from '../utils/examples.js';
-import { getCommandDocs } from '../agent/commands/index.js';
+import { getCommandDocs, getCommandToolSpecs, formatCommandFromArgs } from '../agent/commands/index.js';
 import { SkillLibrary } from "../agent/library/skill_library.js";
 import { stringifyTurns } from '../utils/text.js';
 import { getCommand } from '../agent/commands/index.js';
@@ -12,6 +12,81 @@ import { selectAPI, createModel } from './_model_map.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const DEFAULT_FUNCTION_CALL_PROMPT = [
+    'You are FunctionGemma, a function-calling assistant for a Minecraft bot.',
+    'Choose the single best command to execute based on the thinker intent and the context.',
+    'Respond with exactly one command using this format: !commandName or !commandName("arg", 1.2).',
+    'If no command is required, respond with NO_COMMAND.',
+    'Do not add any other text.',
+    'Thinker intent: $FUNCTION_INTENT',
+    '$STATS',
+    '$INVENTORY',
+    '$COMMAND_DOCS',
+    '$CONVO'
+].join('\n');
+const DEFAULT_FUNCTION_CALL_PROMPT_TOOLS = [
+    'You are a model that can do function calling with the following functions.',
+    'Select exactly one function to call based on the user request.',
+    'Return only the function call and no other text.',
+    'If no function applies, respond with NO_FUNCTION.',
+].join('\n');
+const DEFAULT_FUNCTION_CALL_USER_PROMPT_TOOLS = [
+    'Thinker intent: $FUNCTION_INTENT',
+    '$STATS',
+    '$INVENTORY'
+].join('\n');
+const FUNCTION_CALLING_INSTRUCTIONS = [
+    'When you need to take an action, do not write the !command yourself (this overrides any instruction about writing commands directly).',
+    'Instead write a single line starting with @function_gemma followed by your intent and key parameters.',
+    'Example: @function_gemma go to player "steve" and stay within 2 blocks.',
+    'If no action is needed, respond normally.'
+].join(' ');
+
+function parseFunctionGemmaCall(text) {
+    if (!text) {
+        return null;
+    }
+    const start = text.indexOf('<start_function_call>');
+    const end = text.indexOf('<end_function_call>');
+    if (start === -1 || end === -1 || end <= start) {
+        return null;
+    }
+    const inner = text.slice(start + '<start_function_call>'.length, end).trim();
+    const callPrefix = 'call:';
+    const callStart = inner.startsWith(callPrefix) ? inner.slice(callPrefix.length) : inner;
+    const nameEnd = callStart.indexOf('{');
+    const fnName = nameEnd === -1 ? callStart.trim() : callStart.slice(0, nameEnd).trim();
+    const argsSection = nameEnd === -1 ? '' : callStart.slice(nameEnd + 1, callStart.lastIndexOf('}')).trim();
+    if (!fnName) {
+        return null;
+    }
+    if (!argsSection) {
+        return { name: fnName, args: {} };
+    }
+    const args = {};
+    const regex = /(\w+):(?:(<escape>)([\s\S]*?)<escape>|([^,}]+))/g;
+    let match;
+    while ((match = regex.exec(argsSection)) !== null) {
+        const key = match[1];
+        let value = null;
+        if (match[2]) {
+            value = match[3] ?? '';
+        } else {
+            const raw = (match[4] || '').trim();
+            if (raw === 'true') {
+                value = true;
+            } else if (raw === 'false') {
+                value = false;
+            } else if (raw !== '' && !Number.isNaN(Number(raw))) {
+                value = Number(raw);
+            } else {
+                value = raw;
+            }
+        }
+        args[key] = value;
+    }
+    return { name: fnName, args };
+}
 
 export class Prompter {
     constructor(agent, profile) {
@@ -90,6 +165,25 @@ export class Prompter {
             this.embedding_model = createModel({api: chat_model_profile.api});
         }
 
+        this.function_model = null;
+        this.function_call_prompt = this.profile.function_call_prompt || DEFAULT_FUNCTION_CALL_PROMPT;
+        this.function_call_prompt_tools = this.profile.function_call_prompt_tools || DEFAULT_FUNCTION_CALL_PROMPT_TOOLS;
+        this.function_call_user_prompt_tools = this.profile.function_call_user_prompt_tools || DEFAULT_FUNCTION_CALL_USER_PROMPT_TOOLS;
+        this.function_cooldown = this.profile.function_cooldown ?? 0;
+        this.last_function_prompt_time = 0;
+        const function_model_profile = this.profile.function_model || settings.function_model;
+        if (function_model_profile) {
+            try {
+                let function_profile = typeof function_model_profile === 'string'
+                    ? { model: function_model_profile }
+                    : { ...function_model_profile };
+                function_profile = selectAPI(function_profile);
+                this.function_model = createModel(function_profile);
+            } catch (error) {
+                console.warn('Failed to initialize function model:', error?.message || error);
+            }
+        }
+
         this.skill_libary = new SkillLibrary(agent, this.embedding_model);
         mkdirSync(`./bots/${name}`, { recursive: true });
         writeFileSync(`./bots/${name}/last_profile.json`, JSON.stringify(this.profile, null, 4), (err) => {
@@ -133,7 +227,7 @@ export class Prompter {
         }
     }
 
-    async replaceStrings(prompt, messages, examples=null, to_summarize=[], last_goals=null) {
+    async replaceStrings(prompt, messages, examples=null, to_summarize=[], last_goals=null, function_intent=null) {
         prompt = prompt.replaceAll('$NAME', this.agent.name);
 
         if (prompt.includes('$STATS')) {
@@ -151,6 +245,13 @@ export class Prompter {
         }
         if (prompt.includes('$COMMAND_DOCS'))
             prompt = prompt.replaceAll('$COMMAND_DOCS', getCommandDocs(this.agent));
+        if (prompt.includes('$FUNCTION_CALLING')) {
+            const instructions = this.function_model ? FUNCTION_CALLING_INSTRUCTIONS : '';
+            prompt = prompt.replaceAll('$FUNCTION_CALLING', instructions);
+        }
+        if (prompt.includes('$FUNCTION_INTENT')) {
+            prompt = prompt.replaceAll('$FUNCTION_INTENT', function_intent || '');
+        }
         if (prompt.includes('$CODE_DOCS')) {
             const code_task_content = messages.slice().reverse().find(msg =>
                 msg.role !== 'system' && msg.content.includes('!newAction(')
@@ -210,6 +311,14 @@ export class Prompter {
         this.last_prompt_time = Date.now();
     }
 
+    async checkFunctionCooldown() {
+        let elapsed = Date.now() - this.last_function_prompt_time;
+        if (elapsed < this.function_cooldown && this.function_cooldown > 0) {
+            await new Promise(r => setTimeout(r, this.function_cooldown - elapsed));
+        }
+        this.last_function_prompt_time = Date.now();
+    }
+
     async promptConvo(messages) {
         this.most_recent_msg_time = Date.now();
         let current_msg_time = this.most_recent_msg_time;
@@ -258,6 +367,87 @@ export class Prompter {
         }
 
         return '';
+    }
+
+    async promptFunctionCall(intent, messages) {
+        if (!this.function_model) {
+            return null;
+        }
+        await this.checkFunctionCooldown();
+        let prompt = this.function_call_prompt || DEFAULT_FUNCTION_CALL_PROMPT;
+        prompt = await this.replaceStrings(prompt, messages, null, null, null, intent);
+
+        let rawResponse = '';
+        let toolCalls = null;
+        if (typeof this.function_model.sendToolRequest === 'function') {
+            const isLMStudio = this.function_model?.constructor?.prefix === 'lmstudio';
+            const paramNameTransform = isLMStudio
+                ? (paramName) => (paramName === 'type' ? 'type_name' : paramName)
+                : null;
+            const toolPrompt = this.function_call_prompt_tools || DEFAULT_FUNCTION_CALL_PROMPT_TOOLS;
+            const toolPromptResolved = await this.replaceStrings(toolPrompt, null, null, null, null, intent);
+            const toolUserPrompt = this.function_call_user_prompt_tools || DEFAULT_FUNCTION_CALL_USER_PROMPT_TOOLS;
+            const toolUserPromptResolved = await this.replaceStrings(toolUserPrompt, messages, null, null, null, intent);
+            const { tools, paramNameMap } = getCommandToolSpecs(this.agent, { paramNameTransform });
+            if (tools.length > 0) {
+                const toolResponse = await this.function_model.sendToolRequest([{ role: 'user', content: toolUserPromptResolved }], toolPromptResolved, tools);
+                if (toolResponse?.error) {
+                    rawResponse = '';
+                } else {
+                    rawResponse = toolResponse?.content ?? '';
+                }
+                toolCalls = toolResponse?.tool_calls || null;
+
+                if (toolCalls && toolCalls.length > 0) {
+                    const toolCall = toolCalls[0];
+                    let args = null;
+                    try {
+                        args = toolCall?.function?.arguments ? JSON.parse(toolCall.function.arguments) : {};
+                    } catch (err) {
+                        args = null;
+                    }
+                    if (args && toolCall?.function?.name && paramNameMap?.[toolCall.function.name]) {
+                        const remapped = {};
+                        for (const [key, value] of Object.entries(args)) {
+                            const originalKey = paramNameMap[toolCall.function.name][key] || key;
+                            remapped[originalKey] = value;
+                        }
+                        args = remapped;
+                    }
+                    const command = formatCommandFromArgs(toolCall?.function?.name, args);
+                    if (command) {
+                        await this._saveLog(prompt, messages, JSON.stringify({ tool_calls: toolCalls, command }), 'function_call');
+                        return command;
+                    }
+                }
+            }
+        }
+
+        const tokenCall = parseFunctionGemmaCall(rawResponse);
+        if (tokenCall) {
+            const command = formatCommandFromArgs(tokenCall.name, tokenCall.args);
+            if (command) {
+                await this._saveLog(prompt, messages, JSON.stringify({ token_call: tokenCall, command }), 'function_call');
+                return command;
+            }
+        }
+
+        if (!rawResponse) {
+            rawResponse = await this.function_model.sendRequest([], prompt);
+        }
+        if (rawResponse?.includes('</think>')) {
+            rawResponse = rawResponse.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+        }
+        const fallbackTokenCall = parseFunctionGemmaCall(rawResponse);
+        if (fallbackTokenCall) {
+            const command = formatCommandFromArgs(fallbackTokenCall.name, fallbackTokenCall.args);
+            if (command) {
+                await this._saveLog(prompt, messages, JSON.stringify({ token_call: fallbackTokenCall, command }), 'function_call');
+                return command;
+            }
+        }
+        await this._saveLog(prompt, messages, rawResponse, 'function_call');
+        return rawResponse;
     }
 
     async promptCoding(messages) {

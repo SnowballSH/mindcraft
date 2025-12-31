@@ -48,6 +48,8 @@ const settings = {
     "blocked_actions": ["!checkBlueprint", "!checkBlueprintLevel", "!getBlueprint", "!getBlueprintLevel"], // commands to disable and remove from docs. Ex: ["!setMode"]
     "code_timeout_mins": -1, // minutes code is allowed to run. -1 for no timeout
     "relevant_docs_count": 5, // number of relevant code function docs to select for prompting. -1 for all
+    // "function_model": null, // optional function-calling model (ex: "ollama/functiongemma:270m" or { "api": "lmstudio", "model": "google/functiongemma-270m", "url": "http://127.0.0.1:1234" })
+    "function_model": { "api": "lmstudio", "model": "google/functiongemma-270m", "url": "http://127.0.0.1:1234" },
 
     "max_messages": 15, // max number of messages to keep in context
     "num_examples": 2, // number of examples to give to the model

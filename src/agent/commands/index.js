@@ -257,3 +257,130 @@ export function getCommandDocs(agent) {
     }
     return docs + '*\n';
 }
+
+function typeToSchema(param) {
+    const schema = {};
+    switch (param.type) {
+        case 'int':
+            schema.type = 'integer';
+            break;
+        case 'float':
+            schema.type = 'number';
+            break;
+        case 'boolean':
+            schema.type = 'boolean';
+            break;
+        case 'BlockName':
+        case 'ItemName':
+        case 'BlockOrItemName':
+        case 'string':
+        default:
+            schema.type = 'string';
+            break;
+    }
+
+    if (Array.isArray(param.domain) && param.domain.length >= 2) {
+        const [min, max, endpoint] = param.domain;
+        if (typeof min === 'number') {
+            if (endpoint && endpoint[0] === '(') {
+                schema.exclusiveMinimum = min;
+            } else {
+                schema.minimum = min;
+            }
+        }
+        if (typeof max === 'number') {
+            if (endpoint && endpoint[1] === ')') {
+                schema.exclusiveMaximum = max;
+            } else {
+                schema.maximum = max;
+            }
+        }
+    }
+    return schema;
+}
+
+export function getCommandToolSpecs(agent, options = {}) {
+    const tools = [];
+    const paramNameMap = {};
+    const paramNameTransform = options.paramNameTransform;
+    for (let command of commandList) {
+        if (agent.blocked_actions.includes(command.name)) {
+            continue;
+        }
+        const params = command.params || {};
+        const properties = {};
+        const required = [];
+        const toolName = command.name.startsWith('!') ? command.name.slice(1) : command.name;
+        const toolParamMap = {};
+        for (const [paramName, param] of Object.entries(params)) {
+            let toolParamName = paramNameTransform ? paramNameTransform(paramName, toolName) : paramName;
+            if (!toolParamName) {
+                toolParamName = paramName;
+            }
+            toolParamMap[toolParamName] = paramName;
+            properties[toolParamName] = {
+                ...typeToSchema(param),
+                description: param.description || ''
+            };
+            required.push(toolParamName);
+        }
+        paramNameMap[toolName] = toolParamMap;
+        tools.push({
+            type: 'function',
+            function: {
+                name: toolName,
+                description: command.description || '',
+                parameters: {
+                    type: 'object',
+                    properties,
+                    required,
+                    additionalProperties: false
+                }
+            }
+        });
+    }
+    return { tools, paramNameMap };
+}
+
+function formatArgValue(value) {
+    if (typeof value === 'string') {
+        const escaped = value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+        return `"${escaped}"`;
+    }
+    if (typeof value === 'boolean') {
+        return value ? 'true' : 'false';
+    }
+    if (typeof value === 'number') {
+        return Number.isFinite(value) ? String(value) : '0';
+    }
+    if (value === null || value === undefined) {
+        return '""';
+    }
+    return `"${String(value)}"`;
+}
+
+export function formatCommandFromArgs(commandName, argsObj) {
+    if (!commandName) {
+        return null;
+    }
+    const normalized = commandName.startsWith('!') ? commandName : `!${commandName}`;
+    const command = getCommand(normalized);
+    if (!command) {
+        return null;
+    }
+    const params = commandParamNames(command);
+    if (!params.length) {
+        return normalized;
+    }
+    if (!argsObj || typeof argsObj !== 'object') {
+        return null;
+    }
+    const args = [];
+    for (const paramName of params) {
+        if (!(paramName in argsObj)) {
+            return null;
+        }
+        args.push(formatArgValue(argsObj[paramName]));
+    }
+    return `${normalized}(${args.join(', ')})`;
+}
