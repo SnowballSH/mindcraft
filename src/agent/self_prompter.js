@@ -63,7 +63,7 @@ export class SelfPrompter {
         let no_command_count = 0;
         const MAX_NO_COMMAND = 3;
         while (!this.interrupt) {
-            const msg = `You are self-prompting with the goal: '${this.prompt}'. Your next response MUST contain either a command with this syntax: !commandName or a FunctionGemma request using @function_gemma <intent>. Respond:`;
+            const msg = `You are self-prompting with the goal: '${this.prompt}'. Your next response MUST contain either a command with this syntax: !commandName or a task request using @do_task <intent>. Respond:`;
             
             let used_command = await this.agent.handleMessage('system', msg, -1);
             if (!used_command) {

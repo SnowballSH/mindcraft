@@ -37,8 +37,9 @@ const DEFAULT_FUNCTION_CALL_USER_PROMPT_TOOLS = [
 ].join('\n');
 const FUNCTION_CALLING_INSTRUCTIONS = [
     'When you need to take an action, do not write the !command yourself (this overrides any instruction about writing commands directly).',
-    'Instead write a single line starting with @function_gemma followed by your intent and key parameters.',
-    'Example: @function_gemma go to player "steve" and stay within 2 blocks.',
+    'Instead write a single line starting with @do_task followed by a broad, natural-language intent.',
+    'Do not list tool names or command syntax. Describe the goal and constraints in plain language.',
+    'Example: @do_task get closer to steve and keep a short distance.',
     'If no action is needed, respond normally.'
 ].join(' ');
 

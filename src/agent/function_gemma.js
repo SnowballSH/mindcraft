@@ -1,4 +1,4 @@
-export const FUNCTION_GEMMA_TAG = '@function_gemma';
+export const FUNCTION_GEMMA_TAG = '@do_task';
 
 export function extractFunctionGemmaRequest(message) {
     if (!message) {
