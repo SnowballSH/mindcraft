@@ -17,6 +17,7 @@ import settings from './settings.js';
 import { Task } from './tasks/tasks.js';
 import { speak } from './speak.js';
 import { log, validateNameFormat, handleDisconnection } from './connection_handler.js';
+import { runPlanAndExecute } from './plan_execute.js';
 
 export class Agent {
     async start(load_mem=false, init_message=null, count_id=0) {
@@ -314,6 +315,16 @@ export class Agent {
         // Handle other user messages
         await this.history.add(source, message);
         this.history.save();
+
+        if (!self_prompt && !from_other_bot && settings.plan_execute_enabled) {
+            try {
+                return await runPlanAndExecute(this, source, message, {
+                    recursionLimit: settings.plan_execute_recursion_limit ?? 50,
+                });
+            } catch (error) {
+                console.error('plan-and-execute controller failed, falling back to default agent loop:', error);
+            }
+        }
 
         if (!self_prompt && this.self_prompter.isActive()) // message is from user during self-prompting
             max_responses = 1; // force only respond to this message, then let self-prompting take over

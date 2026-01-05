@@ -56,6 +56,9 @@ const settings = {
     "narrate_behavior": true, // chat simple automatic actions ('Picking up item!')
     "chat_bot_messages": true, // publicly chat messages to other bots
 
+    "plan_execute_enabled": false, // if true, use LangGraph plan-and-execute controller for user instructions
+    "plan_execute_recursion_limit": 50, // LangGraph recursion limit for plan/execute/replan loop
+
     "spawn_timeout": 30, // num seconds allowed for the bot to spawn before throwing error. Increase when spawning takes a while.
     "block_place_delay": 0, // delay between placing blocks (ms) if using newAction. helps avoid bot being kicked by anti-cheat mechanisms on servers.
   
