@@ -1,6 +1,6 @@
 # Specify a base image
 # FROM ubuntu:22.04
-FROM node:18
+FROM oven/bun:1.3.5
 
 #Install some dependencies
 
@@ -18,7 +18,7 @@ WORKDIR /mindcraft
 COPY ./server_data.zip /mindcraft
 RUN unzip server_data.zip
 
-RUN npm install
+RUN bun install
 
 
 # Copy the rest of the application code to the working directory

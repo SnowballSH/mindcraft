@@ -1,67 +1,60 @@
 {
     "name": "mindcraft",
+    "packageManager": "bun@1.3.5",
     "type": "module",
     "dependencies": {
-        "@langchain/core": "^0.3.0",
-        "@langchain/langgraph": "^0.2.0",
-        "@anthropic-ai/sdk": "^0.17.1",
-        "@cerebras/cerebras_cloud_sdk": "^1.46.0",
-        "@google/genai": "^1.15.0",
+        "@langchain/core": "^0.3.80",
+        "@langchain/langgraph": "^0.2.74",
+        "@anthropic-ai/sdk": "^0.17.2",
+        "@cerebras/cerebras_cloud_sdk": "^1.64.1",
+        "@google/genai": "^1.34.0",
         "@huggingface/inference": "^2.8.1",
-        "@mistralai/mistralai": "^1.1.0",
-        "canvas": "^3.1.0",
-        "cheerio": "^1.0.0",
-        "express": "^4.18.2",
-        "fast-xml-parser": "^4.5.0",
-        "google-translate-api-x": "^10.7.1",
+        "@mistralai/mistralai": "^1.11.0",
+        "canvas": "^3.2.0",
+        "cheerio": "^1.1.2",
+        "express": "^4.22.1",
+        "fast-xml-parser": "^4.5.3",
+        "google-translate-api-x": "^10.7.2",
         "groq-sdk": "^0.15.0",
-        "minecraft-data": "^3.97.0",
+        "minecraft-data": "^3.102.3",
         "minecraft-protocol": "^1.62.0",
         "mineflayer": "^4.33.0",
         "mineflayer-armor-manager": "^2.0.1",
         "mineflayer-auto-eat": "^3.3.6",
-        "mineflayer-collectblock": "^1.4.1",
+        "mineflayer-collectblock": "^1.6.0",
         "mineflayer-pathfinder": "^2.4.5",
         "mineflayer-pvp": "^1.3.2",
         "node-canvas-webgl": "^0.3.0",
         "open": "^10.2.0",
-        "openai": "^4.4.0",
-        "prismarine-item": "^1.15.0",
-        "prismarine-viewer": "^1.32.0",
+        "openai": "^4.104.0",
+        "prismarine-item": "^1.17.0",
+        "prismarine-viewer": "^1.33.0",
         "replicate": "^0.29.4",
-        "ses": "^1.9.1",
-        "socket.io": "^4.7.2",
-        "socket.io-client": "^4.7.2",
+        "ses": "^1.14.0",
+        "socket.io": "^4.8.3",
+        "socket.io-client": "^4.8.3",
         "three": "^0.128.0",
         "vec3": "^0.1.10",
         "yargs": "^17.7.2",
-        "zod": "^3.23.8"
+        "zod": "^3.25.76"
     },
     "overrides": {
         "canvas": "^3.1.0",
         "gl": "^8.1.6"
     },
     "scripts": {
-        "postinstall": "patch-package",
-        "bt:dev": "tsx src_ts/bt/demo.ts",
-        "bt:build": "tsc -p tsconfig.json",
-        "start": "node main.js",
-        "telemetry": "node plugins/telemetry/server.js"
+        "postinstall": "bunx patch-package",
+        "bt:dev": "bun src_ts/bt/demo.ts",
+        "bt:build": "bunx tsc -p tsconfig.json",
+        "start": "bun main.js",
+        "telemetry": "bun plugins/telemetry/server.js"
     },
     "devDependencies": {
-        "@eslint/js": "^9.13.0",
-        "eslint": "^9.13.0",
+        "@eslint/js": "^9.39.2",
+        "eslint": "^9.39.2",
         "eslint-plugin-no-floating-promise": "^2.0.0",
-        "globals": "^15.11.0",
-        "patch-package": "^8.0.0",
-        "tsx": "^4.19.2",
-        "typescript": "^5.7.3"
-    },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "canvas",
-      "gl",
-      "protobufjs"
-    ]
-  }
+        "globals": "^15.15.0",
+        "patch-package": "^8.0.1",
+        "typescript": "^5.9.3"
+    }
 }

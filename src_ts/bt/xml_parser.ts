@@ -1,3 +1,28 @@
+// xml_parser.ts converts a BehaviorTree XML document (in a simplified BehaviorTree.CPP-like style) 
+//               into an Intermediate Representation (IR):
+
+// Input: XML string like:
+// xml
+// <BehaviorTree ID="foo">
+//   <Sequence>
+//     <Condition name="has_item" item="{item}" count="{count}" />
+//     <Action name="give_player" player="{player}" item="{item}" count="{count}" />
+//   </Sequence>
+// </BehaviorTree>
+
+// Output: an IRTree:
+// ts
+// {
+//   rootId: "root",
+//   nodes: {
+//     "root": { type: "Sequence", children: ["root/0", "root/1"], ... },
+//     "root/0": { type: "Condition", name: "has_item", params: {...} },
+//     "root/1": { type: "Action", name: "give_player", params: {...} },
+//   }
+// }
+// This IR is what the interpreter (interpreter.ts) ticks over.
+
+
 import { XMLParser } from 'fast-xml-parser';
 import type { IRNode, IRTree } from './types.js';
 

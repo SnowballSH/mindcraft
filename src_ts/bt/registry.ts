@@ -1,3 +1,18 @@
+/*
+registry.ts defines the “capability registry” for Behavior Tree (BT) system:
+
+XML BT nodes like <Action name="obtain_item" .../> and <Condition name="has_item" .../> are semantic labels.
+The registry maps those labels to:
+  1. a runtime implementation (run / resume / evaluate)
+  2. a Zod schema used to validate and coerce the node’s arguments at runtime
+So instead of hard-coding behavior inside the parser/interpreter, you get an extensible plug-in mechanism:
+
+add a new action by registering it once
+the interpreter can execute it by name
+you get runtime validation and defaults via Zod
+*/
+
+
 import { z } from 'zod';
 import type { ActionResult, ConditionResult, BTState } from './types.js';
 

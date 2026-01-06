@@ -1,3 +1,22 @@
+/*
+This file is the runtime executor for Behavior Tree (BT) IR. It takes:
+
+1. A parsed IR tree (state.bt: nodes + root ID)
+2. A mutable runtime state (state.runtime: stack, statuses, running action)
+3. A registry of semantic actions/conditions (registry)
+4. A context object (RuntimeContext) with injected services (like a Mindcraft agent, adapters, etc.)
+…and advances the BT one tick at a time, returning:
+
+Updated state
+The BT’s overall status: SUCCESS | FAILURE | RUNNING
+The key design goals it implements are:
+
+Interpreter (not compilation): no LangGraph nodes per BT node; it’s a single ticking loop.
+RUNNING support: long actions can span multiple ticks and resume later.
+Persistent execution cursor: state.runtime.stack remembers where you were between ticks.
+*/
+
+
 import type {
   ActionResult,
   BTState,

@@ -1,4 +1,4 @@
-FROM node:22-bookworm-slim
+FROM oven/bun:1.3.5
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -27,9 +27,9 @@ RUN apt-get update && \
 
 WORKDIR /app
 
-COPY package*.json .
-RUN npm install
+COPY package.json bun.lockb* ./
+RUN bun install
 
 COPY . .
 
-CMD ["npm", "start"]
+CMD ["bun", "run", "start"]
