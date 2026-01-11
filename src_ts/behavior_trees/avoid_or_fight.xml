@@ -1,0 +1,12 @@
+<BehaviorTree ID="avoid_or_fight">
+  <Fallback>
+    <Sequence>
+      <Action name="sense_nearby_entities" max_distance="16" set="nearbyEntities" />
+      <Condition name="bb_any_equals" key="nearbyEntities" field="name" value="{threat_name}" />
+      <Action name="avoid_enemies" distance="16" />
+    </Sequence>
+    <Action name="attack_nearest" mob_type="{mob_type}" kill="true" />
+  </Fallback>
+</BehaviorTree>
+
+

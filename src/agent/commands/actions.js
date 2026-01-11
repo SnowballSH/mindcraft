@@ -499,4 +499,38 @@ export const actionsList = [
             await skills.useToolOn(agent.bot, tool_name, target);
         })
     },
+    {
+        name: '!runBT',
+        description: 'Run a Behavior Tree XML file using the primitives-first BT interpreter (TypeScript dist build).',
+        params: {
+            'bt_path': { type: 'string', description: 'Path to a BT XML file (relative to project root), e.g. "src_ts/behavior_trees/navigate_and_scan.xml".' },
+            'vars_json': { type: 'string', description: 'Optional JSON object of string vars for BT templating, e.g. "{\\"player\\":\\"Steve\\"}".' },
+        },
+        perform: runAsAction(async (agent, bt_path, vars_json) => {
+            const { readFile } = await import('node:fs/promises');
+            const xml = await readFile(bt_path, 'utf8');
+            let vars = {};
+            if (vars_json && String(vars_json).trim().length > 0) {
+                try {
+                    vars = JSON.parse(String(vars_json));
+                } catch (e) {
+                    agent.openChat(`Invalid vars_json for !runBT: ${String(e)}`);
+                    return;
+                }
+            }
+
+            let runBT;
+            try {
+                ({ runBT } = await import('../../../dist_ts/interpreter/run_bt.js'));
+            } catch (e) {
+                agent.openChat(
+                    `BT runtime not built. Run \"pnpm bt:build\" (or \"tsc -p tsconfig.json\") to generate dist_ts. Error: ${String(e)}`
+                );
+                return;
+            }
+
+            const out = await runBT(agent, { xml, vars, recursionLimit: 500 });
+            agent.openChat(`BT finished with status: ${out.status}`);
+        })
+    },
 ];

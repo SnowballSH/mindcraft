@@ -9,11 +9,11 @@ import type { BTState } from './types.js';
 // For now, this file demonstrates compilation+graph wiring. It will throw if agent is missing.
 
 const xml = `
-<BehaviorTree ID="obtain_and_give">
+<BehaviorTree ID="navigate_and_scan">
   <Sequence>
-    <Action name="obtain_item" item="{item}" count="{count}" />
-    <Action name="goto_player" player="{player}" closeness="2" />
-    <Action name="give_player" player="{player}" item="{item}" count="{count}" />
+    <Action name="goto_player" player="{player}" min_distance="3" />
+    <Action name="sense_nearby_entities" max_distance="16" set="nearbyEntities" />
+    <Condition name="bb_any_equals" key="nearbyEntities" field="name" value="{target_entity}" />
   </Sequence>
 </BehaviorTree>
 `;
@@ -26,14 +26,15 @@ const btState: BTState = {
   bt: tree,
   runtime: { statusById: {}, stack: [] },
   world: { inventory: {} },
-  vars: { item: 'torch', count: '16', player: 'Steve' },
+  vars: { player: 'Steve', target_entity: 'zombie' },
+  blackboard: {},
   logs: [],
 };
 
 const services: Record<string, unknown> = {
   // You must inject a running Mindcraft agent here:
   // agent,
-  // mindcraftAdapter,
+  // capabilities,
 };
 
 const app = buildBTGraph(registry, services);

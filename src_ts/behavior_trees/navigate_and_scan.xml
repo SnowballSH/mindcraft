@@ -1,0 +1,9 @@
+<BehaviorTree ID="navigate_and_scan">
+  <Sequence>
+    <Action name="goto_player" player="{player}" min_distance="3" />
+    <Action name="sense_nearby_entities" max_distance="16" set="nearbyEntities" />
+    <Condition name="bb_any_equals" key="nearbyEntities" field="name" value="{target_entity}" />
+  </Sequence>
+</BehaviorTree>
+
+

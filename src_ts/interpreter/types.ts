@@ -92,6 +92,9 @@ export interface BTState {
   runtime: BTRuntimeState;
   world: WorldState;
   vars: Record<string, string>;
+  // Structured scratchpad for sensed data / intermediate results.
+  // Prefer this over parsing strings from vars.
+  blackboard: Record<string, unknown>;
   logs: Array<{ ts: number; msg: string }>;
 }
 

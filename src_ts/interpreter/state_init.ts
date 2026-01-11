@@ -7,6 +7,7 @@ export function createInitialState(tree: IRTree, vars: Record<string, string>): 
     runtime: { statusById: {}, stack: [] },
     world: { inventory: {} },
     vars,
+    blackboard: {},
     logs: [],
   };
 }

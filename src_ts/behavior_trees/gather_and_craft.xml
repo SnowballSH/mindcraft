@@ -1,0 +1,16 @@
+<BehaviorTree ID="gather_and_craft">
+  <Fallback>
+    <Sequence>
+      <Action name="sense_inventory" set="inventory" />
+      <Condition name="has_item" inventory_key="inventory" item="{target_item}" count="{target_count}" />
+    </Sequence>
+    <Sequence>
+      <Action name="collect_blocks" type="{collect_block_type}" count="{collect_block_count}" />
+      <Action name="craft_recipe" item="{target_item}" count="{target_count}" />
+      <Action name="sense_inventory" set="inventory" />
+      <Condition name="has_item" inventory_key="inventory" item="{target_item}" count="{target_count}" />
+    </Sequence>
+  </Fallback>
+</BehaviorTree>
+
+
