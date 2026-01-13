@@ -11,9 +11,7 @@ const settings = {
     "base_profile": "assistant", // survival, assistant, creative, or god_mode
     "profiles": [
         "./andy_1.json",
-        "./andy_2.json",
-        "./andy_3.json",
-        "./andy_4.json",
+
         // "./profiles/gpt.json",
         // "./profiles/claude.json",
         // "./profiles/gemini.json",
@@ -58,6 +56,13 @@ const settings = {
 
     "plan_execute_enabled": false, // if true, use LangGraph plan-and-execute controller for user instructions
     "plan_execute_recursion_limit": 50, // LangGraph recursion limit for plan/execute/replan loop
+
+    // When true, Agent.handleMessage() is orchestrated by a LangGraph StateGraph (TypeScript build output).
+    // This is a safety flag for incremental rollout; legacy behavior remains available when false.
+    "langgraph_message_enabled": true,
+    
+    // Dev aid: when true, logs whenever a LangGraph node is executed (message graph + plan/execute subgraph).
+    "langgraph_node_logs": true,
 
     "spawn_timeout": 30, // num seconds allowed for the bot to spawn before throwing error. Increase when spawning takes a while.
     "block_place_delay": 0, // delay between placing blocks (ms) if using newAction. helps avoid bot being kicked by anti-cheat mechanisms on servers.

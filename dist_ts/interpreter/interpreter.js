@@ -56,7 +56,14 @@ async function runActionNode(ctx, registry, nodeId) {
         throw new Error('Expected Action node');
     const handler = registry.getAction(node.name);
     const resolvedParams = resolveVarsInRecord((node.params ?? {}), ctx.state.vars);
-    const parsedArgs = handler.schema.parse(resolvedParams);
+    let parsedArgs;
+    try {
+        parsedArgs = handler.schema.parse(resolvedParams);
+    }
+    catch (err) {
+        log(ctx.state, `action ${node.name} args schema error: ${String(err)}`);
+        return { status: 'FAILURE', error: String(err) };
+    }
     return handler.run(ctx, parsedArgs);
 }
 async function resumeActionNode(ctx, registry, runningAction) {
@@ -65,7 +72,14 @@ async function resumeActionNode(ctx, registry, runningAction) {
         // No resume handler means treat as failure (misconfigured action)
         return { status: 'FAILURE', error: `Action '${runningAction.actionName}' is RUNNING but has no resume()` };
     }
-    const parsedArgs = handler.schema.parse(runningAction.params);
+    let parsedArgs;
+    try {
+        parsedArgs = handler.schema.parse(runningAction.params);
+    }
+    catch (err) {
+        log(ctx.state, `resume ${runningAction.actionName} args schema error: ${String(err)}`);
+        return { status: 'FAILURE', error: String(err) };
+    }
     return handler.resume(ctx, parsedArgs, runningAction.resumeToken);
 }
 async function evalConditionNode(ctx, registry, nodeId) {
@@ -74,7 +88,14 @@ async function evalConditionNode(ctx, registry, nodeId) {
         throw new Error('Expected Condition node');
     const handler = registry.getCondition(node.name);
     const resolvedParams = resolveVarsInRecord((node.params ?? {}), ctx.state.vars);
-    const parsedArgs = handler.schema.parse(resolvedParams);
+    let parsedArgs;
+    try {
+        parsedArgs = handler.schema.parse(resolvedParams);
+    }
+    catch (err) {
+        log(ctx.state, `condition ${node.name} args schema error: ${String(err)}`);
+        return 'FAILURE';
+    }
     const res = await handler.evaluate(ctx, parsedArgs);
     if (res.updates) {
         Object.assign(ctx.state, res.updates);

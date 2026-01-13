@@ -20,7 +20,11 @@ export class AgentProcess {
             args.push('-m', init_message);
         args.push('-p', this.port);
 
-        const agentProcess = spawn('node', args, {
+        // Run the agent using the same JS runtime as the parent by default.
+        // - If you start Mindcraft with Bun, this avoids spawning system Node (which may be a different version).
+        // - You can override via MINDCRAFT_AGENT_RUNTIME=node (or a full path).
+        const runtime = process.env.MINDCRAFT_AGENT_RUNTIME || process.execPath || 'node';
+        const agentProcess = spawn(runtime, args, {
             stdio: 'inherit',
             stderr: 'inherit',
         });

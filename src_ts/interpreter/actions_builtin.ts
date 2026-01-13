@@ -258,6 +258,61 @@ export function createDefaultRegistry(): Registry {
 
   // --- Phase 4: building/construction primitives ---
 
+  // Convert blackboard sensed blocks into concrete operations without requiring the LLM to synthesize coordinates.
+  // This avoids common failure modes where LLM emits var.* placeholders that resolve to NaN.
+  registerActionWithAliases(
+    r,
+    'goto_block_from_bb',
+    z.object({
+      from: z.string().default('nearbyBlocks'),
+      index: z.coerce.number().int().min(0).default(0),
+      min_distance: z.coerce.number().int().min(0).default(2),
+    }),
+    async (ctx, args): Promise<ActionResult> => {
+      requireAgent(ctx);
+      const caps = requireCapabilities(ctx);
+      const list = (ctx.state.blackboard ?? ({} as any))[args.from] as any;
+      if (!Array.isArray(list) || list.length <= args.index) {
+        return { status: 'FAILURE', error: `blackboard['${args.from}'] missing or index ${args.index} out of range` };
+      }
+      const p = list[args.index]?.position;
+      const x = Number(p?.x);
+      const y = Number(p?.y);
+      const zc = Number(p?.z);
+      if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(zc)) {
+        return { status: 'FAILURE', error: `blackboard['${args.from}'][${args.index}].position is invalid` };
+      }
+      await caps.navigate.toPosition(x, y, zc, args.min_distance);
+      return { status: 'SUCCESS' };
+    },
+  );
+
+  registerActionWithAliases(
+    r,
+    'break_block_from_bb',
+    z.object({
+      from: z.string().default('nearbyBlocks'),
+      index: z.coerce.number().int().min(0).default(0),
+    }),
+    async (ctx, args): Promise<ActionResult> => {
+      requireAgent(ctx);
+      const caps = requireCapabilities(ctx);
+      const list = (ctx.state.blackboard ?? ({} as any))[args.from] as any;
+      if (!Array.isArray(list) || list.length <= args.index) {
+        return { status: 'FAILURE', error: `blackboard['${args.from}'] missing or index ${args.index} out of range` };
+      }
+      const p = list[args.index]?.position;
+      const x = Number(p?.x);
+      const y = Number(p?.y);
+      const zc = Number(p?.z);
+      if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(zc)) {
+        return { status: 'FAILURE', error: `blackboard['${args.from}'][${args.index}].position is invalid` };
+      }
+      const ok = await caps.build.breakBlockAt(x, y, zc);
+      return { status: ok ? 'SUCCESS' : 'FAILURE' };
+    },
+  );
+
   registerActionWithAliases(
     r,
     'place_block',

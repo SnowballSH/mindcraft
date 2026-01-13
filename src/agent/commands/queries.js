@@ -4,6 +4,7 @@ import { getCommandDocs } from './index.js';
 import convoManager from '../conversation.js';
 import { checkLevelBlueprint, checkBlueprint } from '../tasks/construction_tasks.js';
 import { load } from 'cheerio';
+import { loadBtCatalog, getBtById } from '../bt_catalog.js';
 
 const pad = (str) => {
     return '\n' + str + '\n';
@@ -342,6 +343,39 @@ export const queryList = [
         description: 'Lists all available commands and their descriptions.',
         perform: async function (agent) {
             return getCommandDocs(agent);
+        }
+    },
+    {
+        name: '!listBTs',
+        description: 'List available Behavior Trees (BT library) and the vars each requires.',
+        perform: async function () {
+            let entries;
+            try {
+                entries = await loadBtCatalog();
+            } catch (e) {
+                return pad(`BT_CATALOG_ERROR\n${String(e)}`);
+            }
+            if (!entries.length) return pad('BT_CATALOG: (none found)');
+            let res = 'BT_CATALOG';
+            for (const e of entries) {
+                const vars = e.vars.length ? e.vars.join(', ') : '(none)';
+                res += `\n- ${e.id}  vars: ${vars}`;
+            }
+            res += `\n\nUsage: !describeBT(\"bt_id\") then !runBT(\"bt_id\", \"{...vars...}\")`;
+            return pad(res);
+        }
+    },
+    {
+        name: '!describeBT',
+        description: 'Describe one Behavior Tree: required vars and file path.',
+        params: {
+            'bt_id': { type: 'string', description: 'BehaviorTree ID, e.g. "navigate_and_scan".' },
+        },
+        perform: async function (_agent, bt_id) {
+            const e = await getBtById(bt_id);
+            if (!e) return pad(`Unknown bt_id "${bt_id}". Run !listBTs.`);
+            const vars = e.vars.length ? e.vars.join(', ') : '(none)';
+            return pad(`BT: ${e.id}\n- path: ${e.path}\n- vars: ${vars}`);
         }
     },
 ];

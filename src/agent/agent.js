@@ -262,6 +262,29 @@ export class Agent {
             return false;
         }
 
+        // LangGraph-based message orchestration (incremental rollout via settings flag)
+        // Falls back to legacy implementation on any error.
+        if (settings.langgraph_message_enabled) {
+            try {
+                if (!this._messageGraphApp) {
+                    const mod = await import('../../dist_ts/agent/message_graph.js');
+                    this._messageGraphApp = mod.buildMessageGraph(this);
+                }
+                const out = await this._messageGraphApp.invoke({
+                    source,
+                    rawMessage: message,
+                    maxResponses: max_responses,
+                    responsesSoFar: 0,
+                    done: false,
+                    usedCommand: false,
+                    isComplex: false,
+                });
+                return !!out.usedCommand;
+            } catch (error) {
+                console.error('LangGraph message handler failed, falling back to legacy handleMessage:', error);
+            }
+        }
+
         let used_command = false;
         if (max_responses === null) {
             max_responses = settings.max_commands === -1 ? Infinity : settings.max_commands;

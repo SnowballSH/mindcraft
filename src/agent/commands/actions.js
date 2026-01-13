@@ -501,14 +501,22 @@ export const actionsList = [
     },
     {
         name: '!runBT',
-        description: 'Run a Behavior Tree XML file using the primitives-first BT interpreter (TypeScript dist build).',
+        description: 'Run a Behavior Tree by bt_id from the BT library (see !listBTs / !describeBT).',
         params: {
-            'bt_path': { type: 'string', description: 'Path to a BT XML file (relative to project root), e.g. "src_ts/behavior_trees/navigate_and_scan.xml".' },
+            'bt_id': { type: 'string', description: 'BehaviorTree ID (from !listBTs), e.g. "navigate_and_scan".' },
             'vars_json': { type: 'string', description: 'Optional JSON object of string vars for BT templating, e.g. "{\\"player\\":\\"Steve\\"}".' },
         },
-        perform: runAsAction(async (agent, bt_path, vars_json) => {
+        perform: runAsAction(async (agent, bt_id, vars_json) => {
             const { readFile } = await import('node:fs/promises');
-            const xml = await readFile(bt_path, 'utf8');
+            const { getBtById } = await import('../bt_catalog.js');
+
+            const entry = await getBtById(bt_id);
+            if (!entry) {
+                agent.openChat(`Unknown bt_id "${bt_id}". Run !listBTs to see available Behavior Trees.`);
+                return;
+            }
+
+            const xml = await readFile(entry.path, 'utf8');
             let vars = {};
             if (vars_json && String(vars_json).trim().length > 0) {
                 try {
@@ -518,13 +526,19 @@ export const actionsList = [
                     return;
                 }
             }
+            // Light guardrail: remind about missing vars.
+            const missing = (entry.vars || []).filter((k) => vars[k] === undefined);
+            if (missing.length > 0) {
+                agent.openChat(`BT "${bt_id}" missing vars: ${missing.join(', ')}. Run !describeBT("${bt_id}") for required vars.`);
+                return;
+            }
 
             let runBT;
             try {
                 ({ runBT } = await import('../../../dist_ts/interpreter/run_bt.js'));
             } catch (e) {
                 agent.openChat(
-                    `BT runtime not built. Run \"pnpm bt:build\" (or \"tsc -p tsconfig.json\") to generate dist_ts. Error: ${String(e)}`
+                    `BT runtime not built. Run \"bun run bt:build\" to generate dist_ts. Error: ${String(e)}`
                 );
                 return;
             }

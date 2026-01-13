@@ -6,6 +6,22 @@ const VAR_PATTERN = /\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g;
 // 1. Must start with a letter or underscore
 // 2. Can then contain letters, digits, underscores
 export function resolveVarsInString(input, vars) {
+    const trimmed = input.trim();
+    // Backwards/LLM-friendly aliases:
+    // - "var.foo" / "vars.foo" / "var:foo" / "vars:foo"
+    // We only resolve these when the entire string is the alias token to avoid surprising partial replacements.
+    const m = /^(?:var|vars)[.:]([a-zA-Z_][a-zA-Z0-9_\\.:-]*)$/.exec(trimmed);
+    if (m) {
+        const raw = m[1];
+        const candidates = [
+            raw,
+            raw.replace(/[\\.:-]/g, '_'),
+        ];
+        for (const c of candidates) {
+            if (vars[c] !== undefined)
+                return vars[c];
+        }
+    }
     return input.replace(VAR_PATTERN, (match, varName) => {
         if (vars[varName] === undefined)
             return match;

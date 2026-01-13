@@ -16,6 +16,32 @@ function requireCapabilities(ctx) {
 }
 export function registerDefaultConditions(r) {
     // Option B (primitives-first): conditions are real predicates over blackboard/world state.
+    // Common LLM mistake: using `sense_nearby_blocks` as a Condition instead of an Action.
+    // We support it as a condition alias to reduce brittle BT failures.
+    r.registerCondition({
+        name: 'sense_nearby_blocks',
+        schema: z.object({
+            types: z.string().optional(),
+            max_distance: z.coerce.number().int().min(1).default(16),
+            count: z.coerce.number().int().min(1).max(10000).default(50),
+            set: z.string().default('nearbyBlocks'),
+        }),
+        async evaluate(ctx, args) {
+            requireAgent(ctx);
+            const caps = requireCapabilities(ctx);
+            const types = args.types && args.types.trim().length > 0
+                ? args.types
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter((s) => s.length > 0)
+                : null;
+            const out = await caps.sense.nearbyBlocks(types, args.max_distance, args.count);
+            return {
+                status: 'SUCCESS',
+                updates: { blackboard: { ...ctx.state.blackboard, [args.set]: out } },
+            };
+        },
+    });
     r.registerCondition({
         name: 'bb_nonempty',
         schema: z.object({ key: z.string() }),

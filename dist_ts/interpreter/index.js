@@ -3,7 +3,6 @@ export * from './registry.js';
 export * from './vars.js';
 export * from './xml_parser.js';
 export * from './interpreter.js';
-export * from './mindcraft_adapter.js';
 export * from './actions_builtin.js';
 export * from './conditions_builtin.js';
 export * from './langgraph_runner.js';
