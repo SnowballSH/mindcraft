@@ -91,6 +91,38 @@ const btSpecSchema = z
             ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Do not include 'tree' when format is 'xml'" });
     }
 });
+function makeRestrictedBtSpecSchema(opts) {
+    const names = [...opts.allowedActions, ...opts.allowedConditions];
+    if (names.length === 0) {
+        // Should never happen: default registries always register actions/conditions.
+        // If it does, fail fast rather than silently allowing arbitrary names.
+        throw new Error('Cannot build restricted BT schema: no registered actions/conditions');
+    }
+    const nameEnum = z.enum(names);
+    const restrictedIrNodeSpecSchema = irNodeSpecSchema.extend({ name: nameEnum.optional() });
+    const restrictedIrTreeArraySchema = irTreeArraySchema.extend({ nodes: z.array(restrictedIrNodeSpecSchema) });
+    return z
+        .object({
+        format: z.enum(['ir', 'xml']),
+        tree: restrictedIrTreeArraySchema.optional(),
+        xml: z.string().optional(),
+        vars: kvVarsSchema.optional(),
+    })
+        .superRefine((v, ctx) => {
+        if (v.format === 'ir') {
+            if (!v.tree)
+                ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Missing 'tree' for format 'ir'" });
+            if (v.xml)
+                ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Do not include 'xml' when format is 'ir'" });
+        }
+        if (v.format === 'xml') {
+            if (!v.xml)
+                ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Missing 'xml' for format 'xml'" });
+            if (v.tree)
+                ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Do not include 'tree' when format is 'xml'" });
+        }
+    });
+}
 function formatPlan(steps) {
     if (!steps || steps.length === 0)
         return '';
@@ -265,8 +297,10 @@ export function buildPlanExecuteGraph(agent, deps, { onPlan, onStep, onReplan } 
         //     };
         //   },
         // });
-        const allowedActions = new Set(registry.listActions());
-        const allowedConditions = new Set(registry.listConditions());
+        const allowedActionNames = registry.listActions();
+        const allowedConditionNames = registry.listConditions();
+        const allowedActions = new Set(allowedActionNames);
+        const allowedConditions = new Set(allowedConditionNames);
         function zodObjectKeys(schema) {
             let s = schema;
             // unwrap effects
@@ -356,7 +390,11 @@ export function buildPlanExecuteGraph(agent, deps, { onPlan, onStep, onReplan } 
                 const lcModel = requireLcModel('BT generation');
                 if (!lcModel?.withStructuredOutput)
                     throw new Error('lcModel.withStructuredOutput missing');
-                const runner = lcModel.withStructuredOutput(btSpecSchema);
+                const restrictedSchema = makeRestrictedBtSpecSchema({
+                    allowedActions: allowedActionNames,
+                    allowedConditions: allowedConditionNames,
+                });
+                const runner = lcModel.withStructuredOutput(restrictedSchema);
                 const out = await runner.invoke([new ChatMessage(btSystem, 'system'), new ChatMessage(btUser, 'human')]);
                 spec = out;
                 dbg(attempt + 1, 'structured_output_ok', JSON.stringify(spec));
